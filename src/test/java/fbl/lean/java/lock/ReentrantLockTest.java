@@ -74,7 +74,7 @@ public class ReentrantLockTest {
     }
 
     public static class ReentrantLock {
-        private final Sync sync = new Sync();
+        private final Sync sync = new Sync(true);
 
         public void lock() {
             sync.acquire(1);
@@ -87,12 +87,21 @@ public class ReentrantLockTest {
         // Our internal helper class
         private static class Sync extends AQS {
 
+            private final boolean fair;
+
+            Sync(boolean fair) {
+                this.fair = fair;
+            }
+
             @Override
             protected boolean tryAcquire(int acquires) {
                 final Thread current = Thread.currentThread();
                 int c = getState();
                 if (c == 0) {
-                    //!hasQueuedPredecessors() &&
+                    if (fair && hasQueuedPredecessors()) {
+                        log.info("hasQueuedPredecessors");
+                        return false;
+                    }
                     if (compareAndSetState(0, acquires)) {
                         setExclusiveOwnerThread(current);
                         return true;

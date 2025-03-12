@@ -168,6 +168,17 @@ public class AQS extends AbstractOwnableSynchronizer {
         return unsafe.compareAndSwapObject(this, tailOffset, expect, update);
     }
 
+    public final boolean hasQueuedPredecessors() {
+        // 获取队列的尾节点
+        Node tailNode = tail;
+        // 获取队列的头节点
+        Node headNode = head;
+        Node nextNode;
+        // 判断队列是否存在等待的线程，并且队列中第一个等待的线程不是当前线程
+        return headNode != tailNode &&
+                ((nextNode = headNode.next) == null || nextNode.thread != Thread.currentThread());
+    }
+
     // 打印链表队列内容
     private void printQueue(String action) {
         Node node = tail;

@@ -62,7 +62,7 @@ public class MutexLockTest {
     }
 
     public static class MutexLock {
-        private final Sync sync = new Sync();
+        private final Sync sync = new Sync(true);
 
         public void lock() {
             sync.acquire(1);
@@ -74,9 +74,18 @@ public class MutexLockTest {
 
         // Our internal helper class
         private static class Sync extends AQS {
+            private final boolean fair;
+
+            Sync(boolean fair) {
+                this.fair = fair;
+            }
 
             @Override
             protected boolean tryAcquire(int acquires) {
+                if (fair && hasQueuedPredecessors()) {
+                    log.info("hasQueuedPredecessors");
+                    return false;
+                }
                 return compareAndSetState(0, 1);
             }
 
