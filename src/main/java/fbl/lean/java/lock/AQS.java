@@ -7,10 +7,11 @@ import sun.misc.Unsafe;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.locks.AbstractOwnableSynchronizer;
 import java.util.concurrent.locks.LockSupport;
 
 @Slf4j
-public class AQS {
+public class AQS extends AbstractOwnableSynchronizer {
     private static final Unsafe unsafe = UnsafeUtils.getUnsafe();
     private static final long stateOffset;
     private static final long headOffset;
@@ -33,26 +34,26 @@ public class AQS {
     private transient volatile Node tail;
     private volatile int state;
 
-    protected boolean tryAcquire() {
+    protected boolean tryAcquire(int acquires) {
         throw new UnsupportedOperationException();
     }
 
-    protected boolean tryRelease() {
+    protected boolean tryRelease(int releases) {
         throw new UnsupportedOperationException();
     }
 
-    public final void acquire() {
-        if (tryAcquire()) {
+    public final void acquire(int acquires) {
+        if (tryAcquire(acquires)) {
             log.info("tryAcquire success!");
             return;
         }
         printQueue("acquire");
         Node node = addWaiter();
-        acquireQueued(node);
+        acquireQueued(node, acquires);
     }
 
-    public final boolean release() {
-        if (tryRelease()) {
+    public final boolean release(int releases) {
+        if (tryRelease(releases)) {
             Node h = head;
             if (h != null)
                 unparkSuccessor(h);
@@ -102,12 +103,12 @@ public class AQS {
         return false;
     }
 
-    final void acquireQueued(final Node node) {
+    final void acquireQueued(final Node node, int acquires) {
         // 获取锁
         for (; ; ) {
             final Node p = node.predecessor();
             // 如果前驱是head，说明当前节点在第一个，去尝试加锁。
-            if (p == head && tryAcquire()) {
+            if (p == head && tryAcquire(acquires)) {
                 // 自己替换成新head
                 setHead(node);
                 // 旧的head释放前，需要将head的next设置为null

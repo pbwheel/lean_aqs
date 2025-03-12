@@ -9,15 +9,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
-public class MutexLockTest {
+public class ReentrantLockTest {
     @Test
-    @DisplayName("多线程互斥锁测试")
-    void testMutex() throws InterruptedException {
-        MutexLock mutex = new MutexLock();
+    @DisplayName("可重入锁测试")
+    void testReentrant() throws InterruptedException {
+        ReentrantLock lock = new ReentrantLock();
         int[] sum = {0};
         List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            Adder adder = new Adder(mutex, sum);
+            Adder adder = new Adder(lock, sum);
             adder.start();
             threads.add(adder);
         }
@@ -27,18 +27,18 @@ public class MutexLockTest {
     }
 
     static class Adder extends Thread {
-        private final MutexLock mutex;
+        private final ReentrantLock mutex;
         private final int[] n;
 
-        Adder(MutexLock mutex, int[] n) {
+        Adder(ReentrantLock mutex, int[] n) {
             this.n = n;
             this.mutex = mutex;
         }
 
         public void run() {
             while (true) {
-                add();
                 try {
+                    add();
                     Thread.sleep(RandomUtils.nextInt(10, 100));
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
@@ -47,6 +47,17 @@ public class MutexLockTest {
         }
 
         private void add() {
+            mutex.lock();
+            try {
+                add1();
+                add1();
+            } finally {
+                mutex.unlock();
+            }
+            log.info("end");
+        }
+
+        private void add1() {
             mutex.lock();
             try {
                 n[0]++;
@@ -59,9 +70,10 @@ public class MutexLockTest {
             }
             log.info("end");
         }
+
     }
 
-    public static class MutexLock {
+    public static class ReentrantLock {
         private final Sync sync = new Sync();
 
         public void lock() {
@@ -77,17 +89,36 @@ public class MutexLockTest {
 
             @Override
             protected boolean tryAcquire(int acquires) {
-                return compareAndSetState(0, 1);
+                final Thread current = Thread.currentThread();
+                int c = getState();
+                if (c == 0) {
+                    //!hasQueuedPredecessors() &&
+                    if (compareAndSetState(0, acquires)) {
+                        setExclusiveOwnerThread(current);
+                        return true;
+                    }
+                } else if (current == getExclusiveOwnerThread()) {
+                    int nextc = c + acquires;
+                    if (nextc < 0)
+                        throw new Error("Maximum lock count exceeded");
+                    setState(nextc);
+                    return true;
+                }
+                return false;
             }
 
             @Override
             protected boolean tryRelease(int releases) {
-                if (getState() == 0) {
+                int c = getState() - releases;
+                if (Thread.currentThread() != getExclusiveOwnerThread())
                     throw new IllegalMonitorStateException();
+                boolean free = false;
+                if (c == 0) {
+                    free = true;
+                    setExclusiveOwnerThread(null);
                 }
-
-                setState(0);
-                return true;
+                setState(c);
+                return free;
             }
         }
     }
